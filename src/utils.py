@@ -22,6 +22,10 @@ from pyod.models.qmcd import QMCD
 from pyod.models.sampling import Sampling
 from pyod.models.kpca import KPCA
 from pyod.models.lunar import LUNAR
+from pyod.models.deep_svdd import InnerDeepSVDD
+from pyod.models.auto_encoder import AutoEncoder
+from pyod.models.vae import VAE
+
 
 def get_dataset_names():
     mat_file_list = [
@@ -70,5 +74,8 @@ def get_models():
         (LUNAR, "LUNAR"),
         (CBLOF, "CBLOF"),
         (OCSVM, "OCSVM"),
+        (InnerDeepSVDD, "InnerDeepSVDD"),
+        (AutoEncoder, "AutoEncoder"),
+        (VAE, "VAE"),
     ]
     return model_list
