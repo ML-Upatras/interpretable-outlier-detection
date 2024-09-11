@@ -8,18 +8,12 @@ import pandas as pd
 import tensorflow as tf
 
 # define nine outlier detection tools to be compared
-from numpy.random import seed
-from pyod.utils.data import evaluate_print, generate_data
-from pyod.utils.utility import precision_n_scores, standardizer
+from pyod.utils.utility import standardizer
 from scipy.io import loadmat
 
 # from pyod.models.feature_bagging import FeatureBagging
-from sklearn import tree
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.utils import check_consistent_length, column_or_1d
 
 from src.evaluation import evaluate_clf
 from src.models import get_normalizing_flow, neg_loglik
@@ -65,13 +59,12 @@ if __name__ == "__main__":
         columns=[
             "dataset",
             "model",
-            "roc",
-            "prn_n",
             "prc",
             "recall",
             "mcc",
             "f1",
-            "time",
+            "training_time",
+            "testing_time",
         ]
     )
 
@@ -121,16 +114,11 @@ if __name__ == "__main__":
             loss=neg_loglik,
         )
 
+        # TIME: Time training of the normalizing flow model and the decision tree
+        start_time_train = time()
+
         # fit model
         result = model.fit(x=X_train, y=np.zeros(len(X_train)), epochs=300, verbose=0)
-
-        # plot and save loss
-        fig, ax = plt.subplots()
-        ax.plot(result.history["loss"])
-        ax.set_xlabel("Epochs")
-        ax.set_ylabel("Loss")
-        ax.set_title(f"Loss for {mat_file}")
-        fig.savefig(LOSS_FIGURES / f"{mat_file}_loss.png")
 
         # create a new dataset MULTI times larger than the original along with its likelihoods
         print(f"\nCreated a new dataset {MULTI} times larger than the original...")
@@ -157,22 +145,11 @@ if __name__ == "__main__":
         # Cap x_gen based on the limits of X_train
         x_gen = clip(x_gen, X_train)
 
-        # save figures
-        plot_points(
-            X_train_original,
-            X_train,
-            X_test,
-            x_gen,
-            y_gen,
-            POINTS_FIGURES / f"{mat_file}.png",
-        )
-
         ##############################
         # Tune Decision Tree with the new dataset (gen_, all_y)
         ##############################
 
         # define classifier
-        start_time = time()
         clf_name = "Decision Tree"
         clf = DecisionTreeClassifier()
 
@@ -199,12 +176,18 @@ if __name__ == "__main__":
         # fit the classifier on the training data
         best_clf.fit(x_gen, y_gen)
 
+        # Calculate training time & start timing the testing
+        training_time = round(time() - start_time_train, 4)
+        start_time_test = time()
+
         # Calculate the mean of all_y, preds, and the accuracy score
         preds = best_clf.predict(X_test)
-        proba = best_clf.predict_proba(X_test)[:, 1]
+
+        # Calculate testing time
+        testing_time = round(time() - start_time_test, 4)
 
         # evaluate and save results
-        new_row = evaluate_clf(mat_file, clf_name, y_test, preds, proba, start_time)
+        new_row = evaluate_clf(mat_file, clf_name, y_test, preds, training_time, testing_time)
         new_row_df = pd.DataFrame(new_row, index=[0])
         results_df = pd.concat([results_df, new_row_df], ignore_index=True)
 
@@ -223,6 +206,24 @@ if __name__ == "__main__":
         tree.plot_tree(best_clf, feature_names=feature_names, class_names=["non-outlier", "outlier"], filled=True)
         plt.savefig(TEXT_REPRESENTATION / f"{mat_file}.png")
 
+        # Save normalizing flow points
+        plot_points(
+            X_train_original,
+            X_train,
+            X_test,
+            x_gen,
+            y_gen,
+            POINTS_FIGURES / f"{mat_file}.png",
+        )
+
+        # Save normalizing flow loss
+        fig, ax = plt.subplots()
+        ax.plot(result.history["loss"])
+        ax.set_xlabel("Epochs")
+        ax.set_ylabel("Loss")
+        ax.set_title(f"Loss for {mat_file}")
+        fig.savefig(LOSS_FIGURES / f"{mat_file}_loss.png")
+
         ##############################
         # Comparison with pyod models on the original dataset (X_train, X_test, y_train, y_test)
         ##############################
@@ -231,7 +232,8 @@ if __name__ == "__main__":
         model_list = get_models()
         for clf, clf_name in model_list:
             try:
-                start_time = time()
+                # TIME: Time training of the rest of the models
+                start_time_train = time()
 
                 print(f"\n... Fit {clf_name}, ...\n")
                 if clf_name == "DeepSVDD":
@@ -240,23 +242,27 @@ if __name__ == "__main__":
                     clf = clf(contamination=outliers_pct)
                 clf.fit(X_train)
 
+                # Calculate training time & start timing the testing
+                training_time = round(time() - start_time_train, 4)
+                start_time_test = time()
+
                 # get the prediction on the test data
                 y_test_pred = clf.predict(X_test)  # outlier labels (0 or 1)
-                # TODO: Identify the difference between decision_function and predict_proba and choose one
-                y_test_scores = clf.decision_function(X_test)  # outlier scores
-                y_proba = clf.predict_proba(X_test)[:, 1]  # outlier probabilities
+
+                # Calculate testing time
+                testing_time = round(time() - start_time_test, 4)
 
                 # evaluate and save results
                 new_row = evaluate_clf(
-                    mat_file, clf_name, y_test, y_test_pred, y_proba, start_time
+                    mat_file, clf_name, y_test, y_test_pred, training_time, testing_time
                 )
                 new_row_df = pd.DataFrame(new_row, index=[0])
                 results_df = pd.concat([results_df, new_row_df], ignore_index=True)
             except Exception as e:
                 print(f"\n\n\n\n\nError in {clf_name}: {e}\n\n\n\n\n\n")
 
-    # sort by dataset name and roc from highest to lowest
-    results_df.sort_values(by=["dataset", "roc"], inplace=True, ascending=[True, False])
+    # sort by dataset name and f1 from highest to lowest
+    results_df.sort_values(by=["dataset", "f1"], inplace=True, ascending=[True, False])
 
     # save results
     results_df.to_csv(RESULTS / f"{SCORING}_results.csv", index=False)
