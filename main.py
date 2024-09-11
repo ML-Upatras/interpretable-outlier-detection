@@ -234,7 +234,10 @@ if __name__ == "__main__":
                 start_time = time()
 
                 print(f"\n... Fit {clf_name}, ...\n")
-                clf = clf(contamination=outliers_pct)
+                if clf_name == "DeepSVDD":
+                    clf = clf(n_features=ndim, contamination=outliers_pct)
+                else:
+                    clf = clf(contamination=outliers_pct)
                 clf.fit(X_train)
 
                 # get the prediction on the test data
