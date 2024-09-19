@@ -9,7 +9,6 @@ from pyod.models.lof import LOF
 from pyod.models.mcd import MCD
 from pyod.models.ocsvm import OCSVM
 from pyod.models.pca import PCA
-from pyod.models.lscp import LSCP
 from pyod.models.inne import INNE
 from pyod.models.gmm import GMM
 from pyod.models.kde import KDE
@@ -18,10 +17,12 @@ from pyod.models.lmdd import LMDD
 from pyod.models.dif import DIF
 from pyod.models.copod import COPOD
 from pyod.models.ecod import ECOD
-from pyod.models.qmcd import QMCD
 from pyod.models.sampling import Sampling
 from pyod.models.kpca import KPCA
 from pyod.models.lunar import LUNAR
+from pyod.models.deep_svdd import DeepSVDD
+from pyod.models.auto_encoder import AutoEncoder
+
 
 def get_dataset_names():
     mat_file_list = [
@@ -70,5 +71,7 @@ def get_models():
         (LUNAR, "LUNAR"),
         (CBLOF, "CBLOF"),
         (OCSVM, "OCSVM"),
+        (DeepSVDD, "DeepSVDD"),
+        (AutoEncoder, "AutoEncoder"),
     ]
     return model_list

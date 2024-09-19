@@ -27,7 +27,7 @@ if __name__ == "__main__":
         TUNING_FRIEDMAN.mkdir(parents=True, exist_ok=True)
 
         # define metrics
-        metrics = ["roc", "prn_n", "prc", "recall", "mcc", "f1"]
+        metrics = ["prc", "recall", "mcc", "f1"]
 
         for metric in metrics:
             # isolate dataset metric and model
